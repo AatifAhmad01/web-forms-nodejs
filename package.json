@@ -2,10 +2,10 @@
   "name": "web-forms-nodejs",
   "version": "1.0.0",
   "description": "web forms is an app where users can create a form and share to get responses, responses are store in db and can be viewd.",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon index.js"
+    "dev": "nodemon src/index.js"
   },
   "keywords": [
     "web-forms",
@@ -15,6 +15,7 @@
   "author": "Atif Ahmad",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^17.2.1",
     "dotnet": "^1.1.4",
     "express": "^4.21.2",
     "mongoose": "^8.10.0"
