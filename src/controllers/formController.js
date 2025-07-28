@@ -30,11 +30,24 @@ const createForm = asyncHanlder(async (req, res) => {
 
 const submitForm = asyncHanlder(async (req, res) => {
     const { formId } = req.params;
-    const { answers, creator } = req.body;
+    const { answers = [], creator, email } = req.body;
 
     try {
 
-        const response = await FormResponse.create({ formId, answers, creator: creator || 'Anonymous' });
+        if (!email) {
+            throw new ApiError(400, 'Email is required');
+        }
+        if (answers.length === 0) {
+            throw new ApiError(400, 'Answers are required');
+        }
+
+        const previousResponse = await FormResponse.findOne({ formId, email });
+
+        if (previousResponse) {
+            throw new ApiError(400, 'You have already submitted a response to this form');
+        }
+
+        const response = await FormResponse.create({ formId, answers, creator: creator || 'Anonymous', email });
 
         if (!response) {
             throw new ApiError(500, 'Failed to submit form');
@@ -45,12 +58,34 @@ const submitForm = asyncHanlder(async (req, res) => {
         );
 
     } catch (error) {
-        throw new ApiError(500, 'Failed to submit form', error.message);
+        console.log(error)
+        throw new ApiError(error.statusCode || 500, error.message || 'Failed to submit form');
     }
 });
 
 const getForms = asyncHanlder(async (_, res) => {
-    const forms = await Form.find();
+
+    // For each form, add a 'noOfResponses' property indicating the number of responses
+    const forms = await Form.aggregate([
+        {
+            $lookup: {
+                from: "formresponses",
+                localField: "_id",
+                foreignField: "formId",
+                as: "responses"
+            }
+        },
+        {
+            $addFields: {
+                noOfResponses: { $size: "$responses" }
+            }
+        },
+        {
+            $project: {
+                responses: 0 // exclude the responses array from the result
+            }
+        }
+    ]);
 
     res.status(200).json(
         new ApiResponse(200, forms || [], 'Forms fetched successfully')
@@ -82,10 +117,22 @@ const getForm = asyncHanlder(async (req, res) => {
 
 const getResponses = asyncHanlder(async (req, res) => {
     const { formId } = req.params;
+
+    const form = await Form.findById(formId);
+
+    if (!form) {
+        throw new ApiError(404, 'Form not found');
+    }
+
     const responses = await FormResponse.find({ formId });
 
+    const data = {
+        form: form._doc,
+        responses: responses
+    }
+
     res.status(200).json(
-        new ApiResponse(200, responses || [], 'Responses fetched successfully')
+        new ApiResponse(200, data, 'Responses fetched successfully')
     );
 });
 

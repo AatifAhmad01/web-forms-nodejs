@@ -13,6 +13,10 @@ const formResponseSchema = new Schema({
     creator: {
         type: String,
     },
+    email: {
+        type: String,
+        required: true,
+    },
     date: {
         type: Date,
         default: Date.now,
