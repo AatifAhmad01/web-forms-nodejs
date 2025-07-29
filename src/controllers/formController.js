@@ -63,33 +63,64 @@ const submitForm = asyncHanlder(async (req, res) => {
     }
 });
 
-const getForms = asyncHanlder(async (_, res) => {
+const getForms = asyncHanlder(async (req, res) => {
 
-    // For each form, add a 'noOfResponses' property indicating the number of responses
-    const forms = await Form.aggregate([
-        {
-            $lookup: {
-                from: "formresponses",
-                localField: "_id",
-                foreignField: "formId",
-                as: "responses"
-            }
-        },
-        {
-            $addFields: {
-                noOfResponses: { $size: "$responses" }
-            }
-        },
-        {
-            $project: {
-                responses: 0 // exclude the responses array from the result
-            }
-        }
-    ]);
+    const { page = 1, limit = 10, search = '', creator = '', sort = 'desc' } = req.query;
 
-    res.status(200).json(
-        new ApiResponse(200, forms || [], 'Forms fetched successfully')
-    );
+    const skip = (page - 1) * limit;
+
+    const query = {
+        isActive: true,
+        isDeleted: false
+    };
+
+    if (search) {
+        query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    if (creator) {
+        query.creator = creator;
+    }
+
+    // if (sort) {
+    //     query.sort = { createdAt: sort === 'desc' ? -1 : 1 };
+    // }
+
+    try {
+
+        const forms = await Form.aggregate([
+            { $match: query },
+            {
+                $lookup: {
+                    from: "formresponses",
+                    localField: "_id",
+                    foreignField: "formId",
+                    as: "responses"
+                }
+            },
+            {
+                $addFields: {
+                    noOfResponses: { $size: "$responses" }
+                }
+            },
+            {
+                $project: {
+                    responses: 0 // exclude the responses array from the result
+                }
+            }
+        ]);
+
+        res.status(200).json(
+            new ApiResponse(200, forms || [], 'Forms fetched successfully')
+        );
+
+    } catch (error) {
+        console.log(error)
+        throw new ApiError(error.statusCode || 500, error.message || 'Failed to fetch forms');
+    }
 });
 
 const getForm = asyncHanlder(async (req, res) => {
@@ -150,17 +181,25 @@ const getResponse = asyncHanlder(async (req, res) => {
 });
 
 const deleteForm = asyncHanlder(async (req, res) => {
+
     const { formId } = req.params;
 
-    const form = await Form.findByIdAndUpdate(formId, { isDeleted: true, isActive: false }, { new: true });
+    try {
 
-    if (!form) {
-        throw new ApiError(404, 'Form not found');
+        const form = await Form.findByIdAndUpdate(formId, { isDeleted: true, isActive: false }, { new: true });
+
+        if (!form) {
+            throw new ApiError(404, 'Form not found');
+        }
+
+        res.status(200).json(
+            new ApiResponse(200, form, 'Form deleted successfully')
+        );
+
+    } catch (error) {
+        console.log(error)
+        throw new ApiError(error.statusCode || 500, error.message || 'Failed to delete form');
     }
-
-    res.status(200).json(
-        new ApiResponse(200, form, 'Form deleted successfully')
-    );
 });
 
 
